@@ -102,6 +102,8 @@ type ScatterGather interface {
 	Info() (direction TCPFlowDirection, start bool, end bool, skip int)
 	// Return some stats regarding the state of the stream
 	Stats() TCPAssemblyStats
+	// Return next sequence
+	NextSequence() (nextSeq Sequence)
 }
 
 // byteContainer is either a page or a livePacket
@@ -130,6 +132,8 @@ type reassemblyObject struct {
 	queuedPackets  int
 	overlapBytes   int
 	overlapPackets int
+	// nextSeq
+	nextSeq Sequence
 }
 
 func (rl *reassemblyObject) Lengths() (int, int) {
@@ -190,6 +194,10 @@ func (rl *reassemblyObject) Stats() TCPAssemblyStats {
 		OverlapBytes:   rl.overlapBytes,
 		OverlapPackets: rl.overlapPackets,
 	}
+}
+
+func (rl *reassemblyObject) NextSequence() (nextSeq Sequence) {
+	return rl.nextSeq
 }
 
 const pageBytes = 1900
@@ -679,6 +687,7 @@ func (a *Assembler) AssembleWithContext(netFlow gopacket.Flow, t *layers.TCP, ac
 	}
 
 	seq, ack, bytes := Sequence(t.Seq), Sequence(t.Ack), t.Payload
+
 	if t.ACK {
 		half.ackSeq = ack
 	}
@@ -1103,6 +1112,10 @@ func (a *Assembler) sendToConnection(conn *connection, half *halfconnection, ac 
 		log.Printf("sendToConnection\n")
 	}
 	end, nextSeq := a.buildSG(half)
+
+	// save nextSeq in ScatterGather
+	a.cacheSG.nextSeq = nextSeq
+
 	half.stream.ReassembledSG(&a.cacheSG, ac)
 	a.cleanSG(half, ac)
 	if end {
