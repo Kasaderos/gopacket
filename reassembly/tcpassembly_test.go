@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/stretchr/testify/assert"
 )
 
 var netFlow gopacket.Flow
@@ -1969,4 +1970,29 @@ func TestReassemblyObjectCaptureInfo(t *testing.T) {
 			t.Errorf("test CaptureInfo(%d):\nwant: %v\n got: %v\n", c.offset, expected, ci)
 		}
 	}
+}
+
+func TestSequenceDifference(t *testing.T) {
+	seq1 := Sequence(1)                   // 0 < normalSeq1 < uint32max / 4
+	seq2 := Sequence((uint32Max)/4 + 1)   // uint32max / 4 < normalSeq2 < uint32max / 2
+	seq3 := Sequence((uint32Max)/2 + 1)   // uint32max / 2 < normalSeq3 < 3 * uint32max / 2
+	seq4 := Sequence(3*(uint32Max)/4 + 1) // 3 * uint32max / 2 < normalSeq4 < uint32max
+
+	assert.True(t, seq1.Difference(seq4) == 3221225471)
+	assert.True(t, seq1.Difference(seq2) == 1073741823)
+	assert.True(t, seq2.Difference(seq1) == -1073741823)
+	assert.True(t, seq3.Difference(seq1) == -2147483647)
+	assert.True(t, seq1.Difference(seq3) == 2147483647)
+	assert.True(t, seq4.Difference(seq1) == -3221225471)
+	assert.True(t, seq1.Difference(seq4) == 3221225471)
+	assert.True(t, seq1.Difference(seq2) == 1073741823)
+	assert.True(t, seq2.Difference(seq1) == -1073741823)
+	assert.True(t, seq2.Difference(seq3) == 1073741824)
+	assert.True(t, seq3.Difference(seq2) == -1073741824)
+	assert.True(t, seq4.Difference(seq3) == -1073741824)
+	assert.True(t, seq3.Difference(seq4) == 1073741824)
+
+	// Is not True
+	// maxSeq := Sequence(uint32Max)
+	// assert.True(t, seq1.Difference(maxSeq) == 4294967294)
 }
